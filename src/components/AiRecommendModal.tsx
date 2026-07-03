@@ -70,6 +70,21 @@ export function AiRecommendModal({
       setApiKey(config.apiKey);
       setCustomBaseURL(config.baseURL);
       setCustomModel(config.model);
+
+      // 先尝试加载本地已有推荐结果
+      const savedResults = localStorage.getItem('coco-ai-results');
+      if (savedResults) {
+        try {
+          const parsed = JSON.parse(savedResults);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setResults(parsed);
+            setStep('result');
+            return;
+          }
+        } catch {}
+      }
+
+      // 没有本地结果，调用 API
       fetchRecommendations(config);
     } else {
       setStep('config');
@@ -165,6 +180,7 @@ export function AiRecommendModal({
       }));
 
       setResults(musicItems);
+      localStorage.setItem('coco-ai-results', JSON.stringify(musicItems));
       setStep('result');
     } catch (err: any) {
       setError(err.message || '推荐失败，请检查配置');
@@ -194,6 +210,13 @@ export function AiRecommendModal({
       delete next[item.id];
       return next;
     }), 600);
+  };
+
+  const reRecommend = () => {
+    localStorage.removeItem('coco-ai-results');
+    setStep('loading');
+    const config = loadConfig();
+    if (config) fetchRecommendations(config);
   };
 
   const startPlayAll = () => {
@@ -394,9 +417,15 @@ export function AiRecommendModal({
 
                 <div className="flex justify-between pt-2 text-xs text-[#404752]/60 dark:text-[#c6c6c7]/60">
                   <p>基于 {playlist.length} 首收藏 · {searchHistory.length} 次搜索 · {playHistory.length} 次播放</p>
-                  <button onClick={clearConfig} className="underline hover:text-[#005faa] cursor-pointer">
-                    AI 设置
-                  </button>
+                  <div className="flex gap-3">
+                    <button onClick={reRecommend} className="underline hover:text-[#005faa] cursor-pointer">
+                      重新推荐
+                    </button>
+                    <span className="text-[#404752]/30 dark:text-[#c6c6c7]/30">·</span>
+                    <button onClick={clearConfig} className="underline hover:text-[#005faa] cursor-pointer">
+                      AI 设置
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
