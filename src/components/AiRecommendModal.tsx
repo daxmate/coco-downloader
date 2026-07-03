@@ -58,8 +58,8 @@ export function AiRecommendModal({
   const [customModel, setCustomModel] = useState('');
   const [providerMenuOpen, setProviderMenuOpen] = useState(false);
 
-  // 按钮反馈
-  const [feedback, setFeedback] = useState<{ [id: string]: 'added' | 'played' | 'downloading' }>({});
+  // 按钮反馈（仅播放和下载需要短暂反馈）
+  const [actionFeedback, setActionFeedback] = useState<{ [id: string]: 'playing' | 'downloading' }>({});
 
   useEffect(() => {
     if (!isOpen) return;
@@ -174,39 +174,33 @@ export function AiRecommendModal({
 
   const handleAddToPlaylist = (item: MusicItem) => {
     onAddToPlaylist(item);
-    setFeedback(prev => ({ ...prev, [item.id]: 'added' }));
-    setTimeout(() => setFeedback(prev => {
-      const next = { ...prev };
-      delete next[item.id];
-      return next;
-    }), 1200);
   };
 
   const handlePlay = (item: MusicItem) => {
     onPlay(item);
-    setFeedback(prev => ({ ...prev, [item.id]: 'played' }));
-    setTimeout(() => setFeedback(prev => {
+    setActionFeedback(prev => ({ ...prev, [item.id]: 'playing' }));
+    setTimeout(() => setActionFeedback(prev => {
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    }), 300);
+  };
+
+  const handleDownload = (item: MusicItem) => {
+    setActionFeedback(prev => ({ ...prev, [item.id]: 'downloading' }));
+    onDownload(item);
+    setTimeout(() => setActionFeedback(prev => {
       const next = { ...prev };
       delete next[item.id];
       return next;
     }), 600);
   };
 
-  const handleDownload = (item: MusicItem) => {
-    setFeedback(prev => ({ ...prev, [item.id]: 'downloading' }));
-    onDownload(item);
-    setTimeout(() => setFeedback(prev => {
-      const next = { ...prev };
-      delete next[item.id];
-      return next;
-    }), 2000);
-  };
-
   const startPlayAll = () => {
     if (results.length > 0) onPlay(results[0]);
   };
 
-  const FeedbackIcon = ({ id, children }: { id: string; children: React.ReactNode }) => {
+  const isInPlaylist = (id: string) => playlist.some(p => p.id === id);
     const fb = feedback[id];
     if (fb === 'added') return <Check className="h-4 w-4 text-rose-500" />;
     if (fb === 'played') return <Check className="h-4 w-4 text-[#005faa]" />;
@@ -368,27 +362,36 @@ export function AiRecommendModal({
                           className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-[#404752] hover:text-rose-500 hover:bg-rose-50 dark:text-[#c6c6c7] dark:hover:text-rose-300 active:scale-90 transition-all"
                           title="添加到歌单"
                         >
-                          <FeedbackIcon id={item.id}>
+                          {/* 添加到歌单 - 永久状态用 playlist 判断 */}
+                          {isInPlaylist(item.id) ? (
+                            <Heart className="h-4 w-4 fill-rose-500 text-rose-500" />
+                          ) : (
                             <Heart className="h-4 w-4" />
-                          </FeedbackIcon>
+                          )}
                         </button>
                         <button
                           onClick={() => handlePlay(item)}
                           className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-[#404752] hover:text-[#005faa] hover:bg-[#005faa]/10 dark:text-[#c6c6c7] active:scale-90 transition-all"
                           title="播放"
                         >
-                          <FeedbackIcon id={item.id}>
-                            <Play className="h-4 w-4 fill-current" />
-                          </FeedbackIcon>
+                        {/* 播放 - 短暂反馈 */}
+                        {actionFeedback[item.id] === 'playing' ? (
+                          <Check className="h-4 w-4 text-[#005faa]" />
+                        ) : (
+                          <Play className="h-4 w-4 fill-current" />
+                        )}
                         </button>
                         <button
                           onClick={() => handleDownload(item)}
                           className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-[#005faa] text-white hover:bg-[#0078d4] active:scale-90 transition-all"
                           title="下载"
                         >
-                          <FeedbackIcon id={item.id}>
-                            <Download className="h-4 w-4" />
-                          </FeedbackIcon>
+                        {/* 下载 - 短暂反馈 */}
+                        {actionFeedback[item.id] === 'downloading' ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4" />
+                        )}
                         </button>
                       </div>
                     </div>

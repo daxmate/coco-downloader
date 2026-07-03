@@ -1324,20 +1324,7 @@ export default function Home() {
         onPlay={handlePlay}
         onAddToPlaylist={addToPlaylist}
         onDownload={(item) => {
-          const srcResolve = async () => {
-            try {
-              const res = await fetch(`/api/url?flagSearch=${encodeURIComponent(`${item.title} ${item.artist || ''}`)}&id=0&source=netease`);
-              const data = await res.json();
-              const url = data.url;
-              if (url) {
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${item.title}.mp3`;
-                a.click();
-              }
-            } catch {}
-          };
-          srcResolve();
+          requestDownloadOne(item);
         }}
       />
 
