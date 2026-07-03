@@ -201,12 +201,6 @@ export function AiRecommendModal({
   };
 
   const isInPlaylist = (id: string) => playlist.some(p => p.id === id);
-    const fb = feedback[id];
-    if (fb === 'added') return <Check className="h-4 w-4 text-rose-500" />;
-    if (fb === 'played') return <Check className="h-4 w-4 text-[#005faa]" />;
-    if (fb === 'downloading') return <Loader2 className="h-4 w-4 animate-spin text-[#005faa]" />;
-    return <>{children}</>;
-  };
 
   return (
     <AnimatePresence>
