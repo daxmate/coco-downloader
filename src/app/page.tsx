@@ -10,6 +10,7 @@ import { PlayerBar } from "@/components/PlayerBar";
 import { DownloadDrawer } from "@/components/DownloadDrawer";
 import { QualitySelectModal } from "@/components/QualitySelectModal";
 import { PlaylistDrawer } from "@/components/PlaylistDrawer";
+import { AiRecommendModal } from "@/components/AiRecommendModal";
 import { FullscreenPlayerDrawer } from "@/components/FullscreenPlayerDrawer";
 import { DownloadTask } from "@/types/download";
 import axios from "axios";
@@ -306,12 +307,30 @@ export default function Home() {
     setPlaylist(prev => prev.filter(p => p.id !== itemId));
   };
 
-  // Navbar 歌单按钮事件
+  // Navbar AI 荐歌按钮事件
   useEffect(() => {
-    const handler = () => setIsPlaylistOpen(prev => !prev);
-    window.addEventListener('toggle-playlist', handler);
-    return () => window.removeEventListener('toggle-playlist', handler);
+    const handler = () => setIsAiOpen(prev => !prev);
+    window.addEventListener('toggle-ai', handler);
+    return () => window.removeEventListener('toggle-ai', handler);
   }, []);
+
+  // 播放历史（AI 用）
+  const [playHistory, setPlayHistory] = useState<MusicItem[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem('coco-play-history');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    // 只保留最近 50 条
+    const trimmed = playHistory.slice(-50);
+    localStorage.setItem('coco-play-history', JSON.stringify(trimmed));
+    if (trimmed.length !== playHistory.length) setPlayHistory(trimmed);
+  }, [playHistory]);
+
+  const [isAiOpen, setIsAiOpen] = useState(false);
   const [downloadEnabled, setDownloadEnabled] = useState(true);
   const [resolvingMusicId, setResolvingMusicId] = useState<string | null>(null);
   const [qualityModal, setQualityModal] = useState<QualityModalState | null>(null);
@@ -439,6 +458,11 @@ export default function Home() {
 
   const handlePlay = async (item: MusicItem) => {
     if (resolvingMusicId === item.id) return;
+    // 记录播放历史
+    setPlayHistory(prev => {
+      const filtered = prev.filter(p => p.id !== item.id);
+      return [...filtered, item];
+    });
     if (activeMusic?.id === item.id) {
       if (playing) {
         audioRef.current?.pause();
@@ -1289,6 +1313,32 @@ export default function Home() {
         items={playlist}
         onPlay={handlePlay}
         onRemove={removeFromPlaylist}
+      />
+
+      <AiRecommendModal
+        isOpen={isAiOpen}
+        onClose={() => setIsAiOpen(false)}
+        playlist={playlist}
+        searchHistory={searchHistory}
+        playHistory={playHistory}
+        onPlay={handlePlay}
+        onAddToPlaylist={addToPlaylist}
+        onDownload={(item) => {
+          const srcResolve = async () => {
+            try {
+              const res = await fetch(`/api/url?flagSearch=${encodeURIComponent(`${item.title} ${item.artist || ''}`)}&id=0&source=netease`);
+              const data = await res.json();
+              const url = data.url;
+              if (url) {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${item.title}.mp3`;
+                a.click();
+              }
+            } catch {}
+          };
+          srcResolve();
+        }}
       />
 
       <QualitySelectModal

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Download, Github, Sun, Moon, Heart, ListMusic } from "lucide-react";
+import { Download, Github, Sun, Moon, Heart, ListMusic, Sparkles } from "lucide-react";
 import { useState, MouseEvent } from "react";
 import { useTheme } from "next-themes";
 import DeveloperPanel from "./DeveloperPanel";
@@ -83,6 +83,15 @@ export function Navbar() {
           >
             <ListMusic className="h-4 w-4" />
             <span className="hidden sm:inline">我的歌单</span>
+          </button>
+
+          <button
+            onClick={() => window.dispatchEvent(new Event('toggle-ai'))}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-gradient-to-r from-[#005faa] to-[#0078d4] px-3 py-2 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:shadow-md active:scale-95"
+            title="AI 荐歌"
+          >
+            <Sparkles className="h-4 w-4" />
+            <span className="hidden sm:inline">AI 荐歌</span>
           </button>
 
           <button
