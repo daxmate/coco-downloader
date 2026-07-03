@@ -307,6 +307,13 @@ export default function Home() {
     setPlaylist(prev => prev.filter(p => p.id !== itemId));
   };
 
+  // Navbar 歌单按钮事件
+  useEffect(() => {
+    const handler = () => setIsPlaylistOpen(prev => !prev);
+    window.addEventListener('toggle-playlist', handler);
+    return () => window.removeEventListener('toggle-playlist', handler);
+  }, []);
+
   // Navbar AI 荐歌按钮事件
   useEffect(() => {
     const handler = () => setIsAiOpen(prev => !prev);
