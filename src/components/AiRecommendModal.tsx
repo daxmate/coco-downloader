@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, Play, Download, Heart, Loader2, Music } from 'lucide-react';
+import { X, Sparkles, Play, Download, Heart, Loader2, Music, Check, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { MusicItem } from '@/types/music';
-import Image from 'next/image';
 
 interface AiRecommendModalProps {
   isOpen: boolean;
@@ -18,47 +17,96 @@ interface AiRecommendModalProps {
   onDownload: (item: MusicItem) => void;
 }
 
+const PROVIDERS = [
+  { label: 'DeepSeek', value: 'deepseek', baseURL: 'https://api.deepseek.com', model: 'deepseek-chat' },
+  { label: 'OpenAI', value: 'openai', baseURL: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+  { label: 'Groq', value: 'groq', baseURL: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
+  { label: '自定义', value: 'custom', baseURL: '', model: '' },
+];
+
+type AiConfig = {
+  provider: string;
+  baseURL: string;
+  model: string;
+  apiKey: string;
+};
+
+function loadConfig(): AiConfig | null {
+  try {
+    const raw = localStorage.getItem('coco-ai-config');
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+function saveConfig(config: AiConfig) {
+  localStorage.setItem('coco-ai-config', JSON.stringify(config));
+}
+
 export function AiRecommendModal({
   isOpen, onClose, playlist, searchHistory, playHistory,
   onPlay, onAddToPlaylist, onDownload
 }: AiRecommendModalProps) {
-  const [apiKey, setApiKey] = useState('');
-  // 保存配置还是显示结果
   const [step, setStep] = useState<'config' | 'loading' | 'result'>('config');
   const [results, setResults] = useState<(MusicItem & { reason?: string })[]>([]);
   const [error, setError] = useState('');
 
+  // 配置
+  const [selectedProvider, setSelectedProvider] = useState(PROVIDERS[0]);
+  const [apiKey, setApiKey] = useState('');
+  const [customBaseURL, setCustomBaseURL] = useState('');
+  const [customModel, setCustomModel] = useState('');
+  const [providerMenuOpen, setProviderMenuOpen] = useState(false);
+
+  // 按钮反馈
+  const [feedback, setFeedback] = useState<{ [id: string]: 'added' | 'played' | 'downloading' }>({});
+
   useEffect(() => {
     if (!isOpen) return;
-    const saved = localStorage.getItem('coco-ai-key');
-    if (saved) {
-      setStep('result');
-      setApiKey(saved);
-      fetchRecommendations(saved);
+    const config = loadConfig();
+    if (config) {
+      const provider = PROVIDERS.find(p => p.value === config.provider) || PROVIDERS[0];
+      setSelectedProvider(provider);
+      setApiKey(config.apiKey);
+      setCustomBaseURL(config.baseURL);
+      setCustomModel(config.model);
+      fetchRecommendations(config);
     } else {
       setStep('config');
     }
   }, [isOpen]);
 
-  const saveKey = () => {
-    if (!apiKey.trim()) return;
-    localStorage.setItem('coco-ai-key', apiKey.trim());
-    setStep('loading');
-    fetchRecommendations(apiKey.trim());
+  const selectProvider = (p: typeof PROVIDERS[0]) => {
+    setSelectedProvider(p);
+    setProviderMenuOpen(false);
   };
 
-  const clearKey = () => {
-    localStorage.removeItem('coco-ai-key');
+  const startRecommend = () => {
+    if (!apiKey.trim()) return;
+    const config: AiConfig = {
+      provider: selectedProvider.value,
+      baseURL: selectedProvider.value === 'custom' ? customBaseURL : selectedProvider.baseURL,
+      model: selectedProvider.value === 'custom' ? customModel : selectedProvider.model,
+      apiKey: apiKey.trim(),
+    };
+    saveConfig(config);
+    fetchRecommendations(config);
+  };
+
+  const clearConfig = () => {
+    localStorage.removeItem('coco-ai-config');
     setApiKey('');
+    setCustomBaseURL('');
+    setCustomModel('');
+    setSelectedProvider(PROVIDERS[0]);
     setStep('config');
     setResults([]);
   };
 
-  const fetchRecommendations = async (key: string) => {
+  const fetchRecommendations = async (config: AiConfig) => {
     setStep('loading');
     setError('');
 
-    // 构建上下文信息
     const playlistInfo = playlist.slice(0, 20).map(s =>
       `${s.title} - ${s.artist || '未知歌手'}`
     ).join('\n');
@@ -70,24 +118,24 @@ export function AiRecommendModal({
     const prompt = [
       '你是一个音乐推荐助手。根据用户的听歌记录，推荐 50 首歌。',
       '结果必须是 **纯 JSON 数组**，不要其他文字，格式如下：',
-      '[{"title": "歌名", "artist": "歌手", "album": "专辑(可选)", "reason": "推荐理由(10字内)"}]',
+      '[{"title": "歌名", "artist": "歌手", "album": "专辑(可选)", "reason": "推荐理由(10字内)"},...]',
       '',
       playlistInfo ? `该用户收藏了以下歌曲：\n${playlistInfo}` : '',
       searchInfo ? `搜索过的关键词：${searchInfo}` : '',
       playInfo ? `播放过的歌曲：\n${playInfo}` : '',
       '如果没有足够信息，推荐一些经典热门的华语歌曲。',
-      '不要返回以下已有的歌：' + playlist.map(s => s.title).join('、'),
+      '不要返回重复的歌曲。',
     ].filter(Boolean).join('\n');
 
     try {
-      const res = await fetch('https://api.deepseek.com/chat/completions', {
+      const res = await fetch(`${config.baseURL}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${key}`,
+          'Authorization': `Bearer ${config.apiKey}`,
         },
         body: JSON.stringify({
-          model: 'deepseek-chat',
+          model: config.model,
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.7,
         }),
@@ -95,41 +143,75 @@ export function AiRecommendModal({
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || `API 请求失败 (${res.status})`);
+        throw new Error(err.error?.message || `请求失败 (${res.status})`);
       }
 
       const data = await res.json();
       const text = data.choices?.[0]?.message?.content || '';
-      // 尝试从 markdown 代码块中提取 JSON
       const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || text.match(/\[[\s\S]*\]/);
       const jsonStr = jsonMatch?.[1] || jsonMatch?.[0] || text;
 
       let items = JSON.parse(jsonStr.trim());
       if (!Array.isArray(items)) throw new Error('返回格式不对');
-      
-      // 转为 MusicItem 格式
+
       const musicItems = items.map((item: any, i: number) => ({
         id: `ai-${Date.now()}-${i}`,
         title: item.title || item.name || '未知歌曲',
         artist: item.artist || item.singer || '未知歌手',
         album: item.album || '',
         cover: '',
-        reason: item.reason || item.reason || '',
+        reason: item.reason || '',
         provider: 'ai',
       }));
 
       setResults(musicItems);
       setStep('result');
     } catch (err: any) {
-      setError(err.message || '推荐失败，请检查 API Key');
+      setError(err.message || '推荐失败，请检查配置');
       setStep('config');
     }
   };
 
+  const handleAddToPlaylist = (item: MusicItem) => {
+    onAddToPlaylist(item);
+    setFeedback(prev => ({ ...prev, [item.id]: 'added' }));
+    setTimeout(() => setFeedback(prev => {
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    }), 1200);
+  };
+
+  const handlePlay = (item: MusicItem) => {
+    onPlay(item);
+    setFeedback(prev => ({ ...prev, [item.id]: 'played' }));
+    setTimeout(() => setFeedback(prev => {
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    }), 600);
+  };
+
+  const handleDownload = (item: MusicItem) => {
+    setFeedback(prev => ({ ...prev, [item.id]: 'downloading' }));
+    onDownload(item);
+    setTimeout(() => setFeedback(prev => {
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    }), 2000);
+  };
+
   const startPlayAll = () => {
-    if (results.length === 0) return;
-    // 逐个播放
-    onPlay(results[0]);
+    if (results.length > 0) onPlay(results[0]);
+  };
+
+  const FeedbackIcon = ({ id, children }: { id: string; children: React.ReactNode }) => {
+    const fb = feedback[id];
+    if (fb === 'added') return <Check className="h-4 w-4 text-rose-500" />;
+    if (fb === 'played') return <Check className="h-4 w-4 text-[#005faa]" />;
+    if (fb === 'downloading') return <Loader2 className="h-4 w-4 animate-spin text-[#005faa]" />;
+    return <>{children}</>;
   };
 
   return (
@@ -142,7 +224,7 @@ export function AiRecommendModal({
             className="fixed inset-0 z-[80] bg-[#1b1b1c]/20 backdrop-blur-sm"
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 0.95 }} exit={{ opacity: 0, scale: 0.95 }}
             className="fixed left-1/2 top-1/2 z-[90] w-full max-w-2xl max-h-[80vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-white p-6 shadow-[0_24px_64px_rgba(0,0,0,0.3)] dark:bg-[#242526]"
           >
             <div className="flex items-start justify-between mb-4">
@@ -155,23 +237,87 @@ export function AiRecommendModal({
               </button>
             </div>
 
-            {/* 配置页 */}
+            {/* 设置页 */}
             {step === 'config' && (
               <div className="space-y-4">
                 <p className="text-sm text-[#404752] dark:text-[#c6c6c7]">
-                  需要 DeepSeek API Key 才能使用 AI 荐歌功能。
+                  配置 AI 服务商和 API Key，根据你的听歌记录为你推荐歌曲。
                 </p>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={e => setApiKey(e.target.value)}
-                  placeholder="输入 DeepSeek API Key..."
-                  className="w-full rounded-xl border border-[#c0c7d4]/30 bg-[#f6f3f2] px-4 py-3 text-sm text-[#1b1b1c] outline-none focus:border-[#005faa] dark:bg-[#303030] dark:text-[#f3f0ef]"
-                  onKeyDown={e => e.key === 'Enter' && saveKey()}
-                />
+
+                {/* 模型选择 */}
+                <div className="relative">
+                  <label className="mb-1 block text-xs font-medium text-[#404752]/70 dark:text-[#c6c6c7]/70">模型</label>
+                  <button
+                    onClick={() => setProviderMenuOpen(!providerMenuOpen)}
+                    className="flex w-full items-center justify-between rounded-xl border border-[#c0c7d4]/30 bg-[#f6f3f2] px-4 py-3 text-sm text-[#1b1b1c] outline-none dark:bg-[#303030] dark:text-[#f3f0ef] cursor-pointer"
+                  >
+                    <span>{selectedProvider.label}</span>
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", providerMenuOpen && "rotate-180")} />
+                  </button>
+                  {providerMenuOpen && (
+                    <div className="absolute left-0 right-0 top-full mt-1 z-10 rounded-xl border border-[#c0c7d4]/30 bg-white py-1 shadow-lg dark:bg-[#303030]">
+                      {PROVIDERS.map(p => (
+                        <button
+                          key={p.value}
+                          onClick={() => selectProvider(p)}
+                          className={cn(
+                            "flex w-full items-center justify-between px-4 py-2.5 text-sm transition-colors cursor-pointer",
+                            selectedProvider.value === p.value
+                              ? "bg-[#d3e3ff] font-medium text-[#005faa] dark:bg-[#003f6d] dark:text-[#a3c9ff]"
+                              : "hover:bg-[#f0eded] text-[#1b1b1c] dark:hover:bg-white/10 dark:text-[#f3f0ef]"
+                          )}
+                        >
+                          <span>{p.label}</span>
+                          {selectedProvider.value === p.value && <Check className="h-4 w-4" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 自定义 baseURL */}
+                {selectedProvider.value === 'custom' && (
+                  <>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-[#404752]/70">Base URL</label>
+                      <input
+                        type="text"
+                        value={customBaseURL}
+                        onChange={e => setCustomBaseURL(e.target.value)}
+                        placeholder="https://your-api.com/v1"
+                        className="w-full rounded-xl border border-[#c0c7d4]/30 bg-[#f6f3f2] px-4 py-3 text-sm text-[#1b1b1c] outline-none focus:border-[#005faa] dark:bg-[#303030] dark:text-[#f3f0ef]"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-[#404752]/70">模型名称</label>
+                      <input
+                        type="text"
+                        value={customModel}
+                        onChange={e => setCustomModel(e.target.value)}
+                        placeholder="gpt-4, claude-3 等"
+                        className="w-full rounded-xl border border-[#c0c7d4]/30 bg-[#f6f3f2] px-4 py-3 text-sm text-[#1b1b1c] outline-none focus:border-[#005faa] dark:bg-[#303030] dark:text-[#f3f0ef]"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* API Key */}
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[#404752]/70 dark:text-[#c6c6c7]/70">API Key</label>
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={e => setApiKey(e.target.value)}
+                    placeholder={`输入 ${selectedProvider.label} API Key...`}
+                    className="w-full rounded-xl border border-[#c0c7d4]/30 bg-[#f6f3f2] px-4 py-3 text-sm text-[#1b1b1c] outline-none focus:border-[#005faa] dark:bg-[#303030] dark:text-[#f3f0ef]"
+                    onKeyDown={e => e.key === 'Enter' && startRecommend()}
+                  />
+                </div>
+
                 {error && <p className="text-sm text-red-500">{error}</p>}
+
                 <button
-                  onClick={saveKey}
+                  onClick={startRecommend}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#005faa] py-3 text-sm font-medium text-white hover:bg-[#0078d4] cursor-pointer"
                 >
                   <Sparkles className="h-4 w-4" />
@@ -194,7 +340,7 @@ export function AiRecommendModal({
                 {results.length > 0 && (
                   <button
                     onClick={startPlayAll}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#005faa]/10 py-3 text-sm font-medium text-[#005faa] hover:bg-[#005faa]/20 dark:text-[#a3c9ff] cursor-pointer"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#005faa]/10 py-3 text-sm font-medium text-[#005faa] hover:bg-[#005faa]/20 cursor-pointer dark:text-[#a3c9ff]"
                   >
                     <Play className="h-4 w-4 fill-current" />
                     全部播放 ({results.length} 首)
@@ -203,27 +349,46 @@ export function AiRecommendModal({
 
                 <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-1">
                   {results.map((item, i) => (
-                    <div key={item.id} className="group flex items-center gap-3 rounded-xl border border-black/5 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-[#303030]">
+                    <div key={item.id} className="group flex items-center gap-3 rounded-xl border border-black/5 bg-white p-3 shadow-sm hover:shadow-md transition-all dark:border-white/10 dark:bg-[#303030]">
                       <span className="w-6 text-center text-xs font-bold text-[#404752]/50 dark:text-[#c6c6c7]/50">{i + 1}</span>
                       <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-[#f0eded] flex items-center justify-center dark:bg-[#242526]">
                         <Music className="h-5 w-5 text-[#404752]/40" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-sm font-medium">{item.title}</h3>
+                        <h3 className="truncate text-sm font-medium text-[#1b1b1c] dark:text-[#f3f0ef]">{item.title}</h3>
                         <p className="truncate text-xs text-[#404752]/80 dark:text-[#c6c6c7]/80">
                           {item.artist}
                           {item.reason && <span className="ml-2 text-[#005faa]/70 dark:text-[#a3c9ff]/70">· {item.reason}</span>}
                         </p>
                       </div>
-                      <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <button onClick={() => onAddToPlaylist(item)} className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-[#404752] hover:text-rose-500 hover:bg-rose-50 dark:text-[#c6c6c7] dark:hover:text-rose-300" title="添加到歌单">
-                          <Heart className="h-4 w-4" />
+                      {/* 操作按钮：hover 显示 */}
+                      <div className="flex gap-1 opacity-0 transition-all duration-200 group-hover:opacity-100">
+                        <button
+                          onClick={() => handleAddToPlaylist(item)}
+                          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-[#404752] hover:text-rose-500 hover:bg-rose-50 dark:text-[#c6c6c7] dark:hover:text-rose-300 active:scale-90 transition-all"
+                          title="添加到歌单"
+                        >
+                          <FeedbackIcon id={item.id}>
+                            <Heart className="h-4 w-4" />
+                          </FeedbackIcon>
                         </button>
-                        <button onClick={() => onPlay(item)} className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-[#404752] hover:text-[#005faa] hover:bg-[#005faa]/10 dark:text-[#c6c6c7]" title="播放">
-                          <Play className="h-4 w-4 fill-current" />
+                        <button
+                          onClick={() => handlePlay(item)}
+                          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-[#404752] hover:text-[#005faa] hover:bg-[#005faa]/10 dark:text-[#c6c6c7] active:scale-90 transition-all"
+                          title="播放"
+                        >
+                          <FeedbackIcon id={item.id}>
+                            <Play className="h-4 w-4 fill-current" />
+                          </FeedbackIcon>
                         </button>
-                        <button onClick={() => onDownload(item)} className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-[#005faa] text-white hover:bg-[#0078d4]" title="下载">
-                          <Download className="h-4 w-4" />
+                        <button
+                          onClick={() => handleDownload(item)}
+                          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-[#005faa] text-white hover:bg-[#0078d4] active:scale-90 transition-all"
+                          title="下载"
+                        >
+                          <FeedbackIcon id={item.id}>
+                            <Download className="h-4 w-4" />
+                          </FeedbackIcon>
                         </button>
                       </div>
                     </div>
@@ -232,8 +397,8 @@ export function AiRecommendModal({
 
                 <div className="flex justify-between pt-2 text-xs text-[#404752]/60 dark:text-[#c6c6c7]/60">
                   <p>基于 {playlist.length} 首收藏 · {searchHistory.length} 次搜索 · {playHistory.length} 次播放</p>
-                  <button onClick={clearKey} className="underline hover:text-[#005faa]">
-                    更换 API Key
+                  <button onClick={clearConfig} className="underline hover:text-[#005faa] cursor-pointer">
+                    AI 设置
                   </button>
                 </div>
               </div>
