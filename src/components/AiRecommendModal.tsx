@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, Play, Download, Heart, Loader2, Music, Check, ChevronDown } from 'lucide-react';
+import { X, Sparkles, Play, Download, Heart, Loader2, Music, Check, ChevronDown, Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { MusicItem } from '@/types/music';
 
@@ -54,9 +54,12 @@ export function AiRecommendModal({
   // 配置
   const [selectedProvider, setSelectedProvider] = useState(PROVIDERS[0]);
   const [apiKey, setApiKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
   const [customBaseURL, setCustomBaseURL] = useState('');
   const [customModel, setCustomModel] = useState('');
   const [providerMenuOpen, setProviderMenuOpen] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<'success' | 'fail' | null>(null);
 
   // 按钮反馈（仅播放和下载需要短暂反馈）
   const [actionFeedback, setActionFeedback] = useState<{ [id: string]: 'playing' | 'downloading' }>({});
@@ -94,6 +97,29 @@ export function AiRecommendModal({
   const selectProvider = (p: typeof PROVIDERS[0]) => {
     setSelectedProvider(p);
     setProviderMenuOpen(false);
+  };
+
+  const testConnection = async () => {
+    if (!apiKey.trim()) { setTestResult('fail'); return; }
+    setTesting(true);
+    setTestResult(null);
+    const baseURL = selectedProvider.value === 'custom' ? customBaseURL : selectedProvider.baseURL;
+    const model = selectedProvider.value === 'custom' ? customModel : selectedProvider.model;
+    try {
+      const res = await fetch(`${baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey.trim()}`,
+        },
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 }),
+      });
+      setTestResult(res.ok ? 'success' : 'fail');
+    } catch {
+      setTestResult('fail');
+    } finally {
+      setTesting(false);
+    }
   };
 
   const startRecommend = () => {
@@ -315,20 +341,40 @@ export function AiRecommendModal({
                 {/* API Key */}
                 <div>
                   <label className="mb-1 block text-xs font-medium text-[#404752]/70 dark:text-[#c6c6c7]/70">API Key</label>
-                  <input
-                    type="password"
-                    value={apiKey}
-                    onChange={e => setApiKey(e.target.value)}
-                    placeholder={`输入 ${selectedProvider.label} API Key...`}
-                    className="w-full rounded-xl border border-[#c0c7d4]/30 bg-[#f6f3f2] px-4 py-3 text-sm text-[#1b1b1c] outline-none focus:border-[#005faa] dark:bg-[#303030] dark:text-[#f3f0ef]"
-                    onKeyDown={e => e.key === 'Enter' && startRecommend()}
-                  />
+                  <div className="relative">
+                    <input
+                      type={showKey ? "text" : "password"}
+                      value={apiKey}
+                      onChange={e => setApiKey(e.target.value)}
+                      placeholder={`输入 ${selectedProvider.label} API Key...`}
+                      className="w-full rounded-xl border border-[#c0c7d4]/30 bg-[#f6f3f2] px-4 py-3 pr-10 text-sm text-[#1b1b1c] outline-none focus:border-[#005faa] dark:bg-[#303030] dark:text-[#f3f0ef]"
+                      onKeyDown={e => e.key === 'Enter' && startRecommend()}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowKey(!showKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#404752]/50 hover:text-[#404752] cursor-pointer"
+                    >
+                      {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 {error && <p className="text-sm text-red-500">{error}</p>}
 
-                <button
-                  onClick={startRecommend}
+                <div className="flex gap-3">
+                  <button
+                    onClick={testConnection}
+                    disabled={testing}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#c0c7d4]/30 py-3 text-sm font-medium text-[#404752] hover:bg-[#f0eded] disabled:opacity-50 cursor-pointer dark:text-[#c6c6c7] dark:hover:bg-white/10"
+                  >
+                    {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    测试连接
+                    {testResult === 'success' && <Check className="h-4 w-4 text-green-500" />}
+                    {testResult === 'fail' && <X className="h-4 w-4 text-red-500" />}
+                  </button>
+                  <button
+                    onClick={startRecommend}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#005faa] py-3 text-sm font-medium text-white hover:bg-[#0078d4] cursor-pointer"
                 >
                   <Sparkles className="h-4 w-4" />
