@@ -381,6 +381,7 @@ export function AiRecommendModal({
                   开始推荐
                 </button>
               </div>
+            </div>
             )}
 
             {/* 加载中 */}
