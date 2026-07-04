@@ -28,14 +28,20 @@ type AiConfig = {
   provider: string;
   baseURL: string;
   model: string;
-  apiKey: string;
+  apiKeys: Record<string, string>;
 };
 
 function loadConfig(): AiConfig | null {
   try {
     const raw = localStorage.getItem('coco-ai-config');
     if (!raw) return null;
-    return JSON.parse(raw);
+    const config = JSON.parse(raw);
+    // 兼容旧格式：单 apiKey 迁移到 apiKeys 字典
+    if (config.apiKey && !config.apiKeys) {
+      config.apiKeys = { [config.provider]: config.apiKey };
+      delete config.apiKey;
+    }
+    return config;
   } catch { return null; }
 }
 
@@ -54,6 +60,7 @@ export function AiRecommendModal({
   // 配置
   const [selectedProvider, setSelectedProvider] = useState(PROVIDERS[0]);
   const [apiKey, setApiKey] = useState('');
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [showKey, setShowKey] = useState(false);
   const [customBaseURL, setCustomBaseURL] = useState('');
   const [customModel, setCustomModel] = useState('');
@@ -70,7 +77,8 @@ export function AiRecommendModal({
     if (config) {
       const provider = PROVIDERS.find(p => p.value === config.provider) || PROVIDERS[0];
       setSelectedProvider(provider);
-      setApiKey(config.apiKey);
+      setApiKeys(config.apiKeys || {});
+      setApiKey(config.apiKeys?.[config.provider] || '');
       setCustomBaseURL(config.baseURL);
       setCustomModel(config.model);
 
@@ -88,15 +96,20 @@ export function AiRecommendModal({
       }
 
       // 没有本地结果，调用 API
-      fetchRecommendations(config);
+      fetchRecommendations(config, config.apiKeys?.[config.provider] || '');
     } else {
       setStep('config');
     }
   }, [isOpen]);
 
   const selectProvider = (p: typeof PROVIDERS[0]) => {
+    // 切换 provider 前保存当前 key 到内存字典
+    const updated = { ...apiKeys, [selectedProvider.value]: apiKey };
+    setApiKeys(updated);
     setSelectedProvider(p);
     setProviderMenuOpen(false);
+    // 加载新 provider 的 key
+    setApiKey(updated[p.value] || '');
   };
 
   const testConnection = async () => {
@@ -114,6 +127,18 @@ export function AiRecommendModal({
         },
         body: JSON.stringify({ model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 }),
       });
+      if (res.ok) {
+        // 测试通过，自动保存配置
+        const mergedKeys = { ...apiKeys, [selectedProvider.value]: apiKey.trim() };
+        setApiKeys(mergedKeys);
+        const config: AiConfig = {
+          provider: selectedProvider.value,
+          baseURL: selectedProvider.value === 'custom' ? customBaseURL : selectedProvider.baseURL,
+          model: selectedProvider.value === 'custom' ? customModel : selectedProvider.model,
+          apiKeys: mergedKeys,
+        };
+        saveConfig(config);
+      }
       setTestResult(res.ok ? 'success' : 'fail');
     } catch {
       setTestResult('fail');
@@ -124,19 +149,22 @@ export function AiRecommendModal({
 
   const startRecommend = () => {
     if (!apiKey.trim()) return;
+    const mergedKeys = { ...apiKeys, [selectedProvider.value]: apiKey.trim() };
+    setApiKeys(mergedKeys);
     const config: AiConfig = {
       provider: selectedProvider.value,
       baseURL: selectedProvider.value === 'custom' ? customBaseURL : selectedProvider.baseURL,
       model: selectedProvider.value === 'custom' ? customModel : selectedProvider.model,
-      apiKey: apiKey.trim(),
+      apiKeys: mergedKeys,
     };
     saveConfig(config);
-    fetchRecommendations(config);
+    fetchRecommendations(config, apiKey.trim());
   };
 
   const clearConfig = () => {
     localStorage.removeItem('coco-ai-config');
     setApiKey('');
+    setApiKeys({});
     setCustomBaseURL('');
     setCustomModel('');
     setSelectedProvider(PROVIDERS[0]);
@@ -144,7 +172,7 @@ export function AiRecommendModal({
     setResults([]);
   };
 
-  const fetchRecommendations = async (config: AiConfig) => {
+  const fetchRecommendations = async (config: AiConfig, currentApiKey: string) => {
     setStep('loading');
     setError('');
 
@@ -173,7 +201,7 @@ export function AiRecommendModal({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.apiKey}`,
+          'Authorization': `Bearer ${currentApiKey}`,
         },
         body: JSON.stringify({
           model: config.model,
@@ -242,7 +270,7 @@ export function AiRecommendModal({
     localStorage.removeItem('coco-ai-results');
     setStep('loading');
     const config = loadConfig();
-    if (config) fetchRecommendations(config);
+    if (config) fetchRecommendations(config, config.apiKeys?.[config.provider] || '');
   };
 
   const startPlayAll = () => {
@@ -375,7 +403,7 @@ export function AiRecommendModal({
                   </button>
                   <button
                     onClick={startRecommend}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#005faa] py-3 text-sm font-medium text-white hover:bg-[#0078d4] cursor-pointer"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#005faa] py-3 text-sm font-medium text-white hover:bg-[#0078d4] cursor-pointer"
                 >
                   <Sparkles className="h-4 w-4" />
                   开始推荐
@@ -469,7 +497,7 @@ export function AiRecommendModal({
                       重新推荐
                     </button>
                     <span className="text-[#404752]/30 dark:text-[#c6c6c7]/30">·</span>
-                    <button onClick={clearConfig} className="underline hover:text-[#005faa] cursor-pointer">
+                    <button onClick={() => setStep('config')} className="underline hover:text-[#005faa] cursor-pointer">
                       AI 设置
                     </button>
                   </div>

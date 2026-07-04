@@ -69,7 +69,7 @@ export function Navbar() {
             href="https://github.com/markcxx/coco-downloader/releases"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-[#005faa] px-3 py-2 text-sm font-medium text-white transition-all duration-300 hover:bg-[#0078d4] dark:bg-[#a3c9ff] dark:text-[#001c39] dark:hover:bg-[#d3e3ff]"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-transparent px-3 py-2 text-sm font-medium text-[#1b1b1c] transition-all duration-300 hover:bg-[#005faa] hover:text-white dark:text-[#f3f0ef] dark:hover:bg-[#a3c9ff] dark:hover:text-[#001c39]"
             title="下载客户端"
           >
             <Download className="h-4 w-4" />
@@ -78,7 +78,7 @@ export function Navbar() {
 
           <button
             onClick={() => window.dispatchEvent(new Event('toggle-playlist'))}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-[#e5e2e1]/70 px-3 py-2 text-sm font-medium text-[#1b1b1c] transition-all duration-300 hover:bg-[#e5e2e1] dark:bg-white/10 dark:text-[#f3f0ef] dark:hover:bg-white/20"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-transparent px-3 py-2 text-sm font-medium text-[#1b1b1c] transition-all duration-300 hover:bg-[#005faa] hover:text-white dark:text-[#f3f0ef] dark:hover:bg-[#a3c9ff] dark:hover:text-[#001c39]"
             title="我的歌单"
           >
             <ListMusic className="h-4 w-4" />
@@ -87,7 +87,7 @@ export function Navbar() {
 
           <button
             onClick={() => window.dispatchEvent(new Event('toggle-ai'))}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-gradient-to-r from-[#005faa] to-[#0078d4] px-3 py-2 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:shadow-md active:scale-95"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-transparent px-3 py-2 text-sm font-medium text-[#1b1b1c] transition-all duration-300 hover:bg-gradient-to-r hover:from-[#005faa] hover:to-[#0078d4] hover:text-white active:scale-95 dark:text-[#f3f0ef] dark:hover:from-[#a3c9ff] dark:hover:to-[#80b5e5] dark:hover:text-[#001c39]"
             title="AI 荐歌"
           >
             <Sparkles className="h-4 w-4" />
