@@ -1014,9 +1014,19 @@ export default function Home() {
                 onChange={(e) => setQuery(e.target.value)}
                 onFocus={() => setSearchFocused(true)}
                 onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
-                  placeholder="输入歌曲名、歌手或专辑..."
-                  className="h-12 w-full rounded-xl border-none bg-transparent py-3 pl-10 pr-28 text-base leading-6 text-[#1b1b1c] outline-none placeholder:text-[#404752]/60 focus:ring-0 dark:text-[#f3f0ef] dark:placeholder:text-[#c6c6c7]/60"
+                placeholder="输入歌曲名、歌手或专辑..."
+                className="h-12 w-full rounded-xl border-none bg-transparent py-3 pl-10 pr-36 text-base leading-6 text-[#1b1b1c] outline-none placeholder:text-[#404752]/60 focus:ring-0 dark:text-[#f3f0ef] dark:placeholder:text-[#c6c6c7]/60"
               />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => { setQuery(''); setResults([]); setSearched(false); }}
+                  className="absolute right-16 top-1/2 -translate-y-1/2 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-[#404752]/50 hover:text-[#404752] hover:bg-[#e5e2e1] transition-colors dark:text-[#c6c6c7]/50 dark:hover:text-[#c6c6c7] dark:hover:bg-white/10"
+                  title="清空"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={loading}
@@ -1328,10 +1338,9 @@ export default function Home() {
         playlist={playlist}
         searchHistory={searchHistory}
         playHistory={playHistory}
-        onPlay={handlePlay}
-        onAddToPlaylist={addToPlaylist}
-        onDownload={(item) => {
-          requestDownloadOne(item);
+        onSearch={(query) => {
+          setIsAiOpen(false);
+          performSearch(query);
         }}
       />
 

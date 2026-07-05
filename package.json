@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build && cp -r .next/static .next/standalone/codes/coco-downloader/.next/ && cp -r public .next/standalone/codes/coco-downloader/",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
