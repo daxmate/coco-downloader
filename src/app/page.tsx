@@ -1021,7 +1021,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => { setQuery(''); setResults([]); setSearched(false); }}
-                  className="absolute right-16 top-1/2 -translate-y-1/2 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-[#404752]/50 hover:text-[#404752] hover:bg-[#e5e2e1] transition-colors dark:text-[#c6c6c7]/50 dark:hover:text-[#c6c6c7] dark:hover:bg-white/10"
+                  className="absolute right-24 top-1/2 -translate-y-1/2 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-[#404752]/50 hover:text-[#404752] hover:bg-[#e5e2e1] transition-colors dark:text-[#c6c6c7]/50 dark:hover:text-[#c6c6c7] dark:hover:bg-white/10"
                   title="清空"
                 >
                   <X className="h-4 w-4" />
@@ -1030,10 +1030,13 @@ export default function Home() {
               <button
                 type="submit"
                 disabled={loading}
-                  className="absolute bottom-1 right-1 top-1 flex cursor-pointer items-center gap-1 rounded-lg bg-[#005faa] px-4 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#0078d4] active:scale-95 disabled:cursor-wait disabled:opacity-70"
+                className="absolute bottom-1 right-1 top-1 flex cursor-pointer items-center justify-center gap-1 rounded-lg bg-[#005faa] px-4 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#0078d4] disabled:cursor-wait disabled:opacity-70 min-w-[88px]"
               >
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span>搜索</span>}
-                  {!loading && <ArrowRight className="h-4 w-4" />}
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <><span>搜索</span><ArrowRight className="h-4 w-4" /></>
+                )}
               </button>
               </div>
             </div>
